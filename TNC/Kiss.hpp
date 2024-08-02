@@ -33,10 +33,10 @@ struct slip_encoder
     typedef char& reference;
     typedef char* pointer;
 
-    static const char FEND = 0xC0;
-    static const char FESC = 0xDB;
-    static const char TFEND = 0xDC;
-    static const char TFESC = 0xDD;
+    static const char FEND = char(0xC0);
+    static const char FESC = char(0xDB);
+    static const char TFEND = char(0xDC);
+    static const char TFESC = char(0xDD);
 
     const char* packet_;
     size_t size_;
@@ -119,10 +119,10 @@ struct slip_encoder2
     typedef char& reference;
     typedef char* pointer;
 
-    static const char FEND = 0xC0;
-    static const char FESC = 0xDB;
-    static const char TFEND = 0xDC;
-    static const char TFESC = 0xDD;
+    static const char FEND = char(0xC0);
+    static const char FESC = char(0xDB);
+    static const char TFEND = char(0xDC);
+    static const char TFESC = char(0xDD);
 
     hdlc::IoFrame::iterator iter_;
     mutable bool shifting_;

@@ -21,6 +21,7 @@ target_include_directories(stm32cubemx INTERFACE
     ../../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F
     ../../Drivers/CMSIS/Device/ST/STM32L4xx/Include
     ../../Drivers/CMSIS/Include
+    ../../Middlewares/ST/ARM/DSP/Inc
 )
 
 target_sources(stm32cubemx INTERFACE
@@ -50,6 +51,7 @@ target_sources(stm32cubemx INTERFACE
     ../../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_crc_ex.c
     ../../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dac.c
     ../../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dac_ex.c
+    ../../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_iwdg.c
     ../../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_opamp.c
     ../../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_opamp_ex.c
     ../../Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_rng.c
@@ -76,9 +78,11 @@ target_sources(stm32cubemx INTERFACE
 )
 
 target_link_directories(stm32cubemx INTERFACE
+    ../../Middlewares/ST/ARM/DSP/Lib
 )
 
-target_link_libraries(stm32cubemx INTERFACE
+target_link_libraries(stm32cubemx INTERFACE 
+	:libarm_cortexM4lf_math.a
 )
 
 # Validate that STM32CubeMX code is compatible with C standard

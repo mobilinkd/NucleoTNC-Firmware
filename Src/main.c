@@ -55,6 +55,8 @@ I2C_HandleTypeDef hi2c3;
 DMA_HandleTypeDef hdma_i2c3_rx;
 DMA_HandleTypeDef hdma_i2c3_tx;
 
+IWDG_HandleTypeDef hiwdg;
+
 OPAMP_HandleTypeDef hopamp1;
 
 RNG_HandleTypeDef hrng;
@@ -69,9 +71,6 @@ UART_HandleTypeDef huart2;
 DMA_HandleTypeDef hdma_usart2_rx;
 DMA_HandleTypeDef hdma_usart2_tx;
 
-osThreadId defaultTaskHandle;
-uint32_t defaultTaskBuffer[ 256 ];
-osStaticThreadDef_t defaultTaskControlBlock;
 osThreadId ioEventTaskHandle;
 uint32_t ioEventTaskBuffer[ 384 ];
 osStaticThreadDef_t ioEventTaskControlBlock;
@@ -129,8 +128,8 @@ static void MX_USART2_UART_Init(void);
 static void MX_I2C3_Init(void);
 static void MX_TIM1_Init(void);
 static void MX_RNG_Init(void);
-void startDefaultTask(void const * argument);
-extern void startIOEventTask(void const * argument);
+static void MX_IWDG_Init(void);
+void startIOEventTask(void const * argument);
 extern void startAudioInputTask(void const * argument);
 extern void startModulatorTask(void const * argument);
 
@@ -210,6 +209,7 @@ int main(void)
   MX_I2C3_Init();
   MX_TIM1_Init();
   MX_RNG_Init();
+  MX_IWDG_Init();
   /* USER CODE BEGIN 2 */
 #ifdef KISS_LOGGING
   printf("start\r\n");
@@ -320,10 +320,6 @@ int main(void)
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
-  /* definition and creation of defaultTask */
-  osThreadStaticDef(defaultTask, startDefaultTask, osPriorityIdle, 0, 256, defaultTaskBuffer, &defaultTaskControlBlock);
-  defaultTaskHandle = osThreadCreate(osThread(defaultTask), NULL);
-
   /* definition and creation of ioEventTask */
   osThreadStaticDef(ioEventTask, startIOEventTask, osPriorityLow, 0, 384, ioEventTaskBuffer, &ioEventTaskControlBlock);
   ioEventTaskHandle = osThreadCreate(osThread(ioEventTask), NULL);
@@ -384,11 +380,13 @@ void SystemClock_Config(void)
   * in the RCC_OscInitTypeDef structure.
   */
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI48|RCC_OSCILLATORTYPE_HSI
-                              |RCC_OSCILLATORTYPE_LSE|RCC_OSCILLATORTYPE_MSI;
+                              |RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_LSE
+                              |RCC_OSCILLATORTYPE_MSI;
   RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSI48State = RCC_HSI48_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.MSIState = RCC_MSI_ON;
   RCC_OscInitStruct.MSICalibrationValue = 0;
   RCC_OscInitStruct.MSIClockRange = RCC_MSIRANGE_11;
@@ -630,6 +628,35 @@ static void MX_I2C3_Init(void)
   /* USER CODE BEGIN I2C3_Init 2 */
 
   /* USER CODE END I2C3_Init 2 */
+
+}
+
+/**
+  * @brief IWDG Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_IWDG_Init(void)
+{
+
+  /* USER CODE BEGIN IWDG_Init 0 */
+
+  /* USER CODE END IWDG_Init 0 */
+
+  /* USER CODE BEGIN IWDG_Init 1 */
+
+  /* USER CODE END IWDG_Init 1 */
+  hiwdg.Instance = IWDG;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_4;
+  hiwdg.Init.Window = 4095;
+  hiwdg.Init.Reload = 4095;
+  if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN IWDG_Init 2 */
+
+  /* USER CODE END IWDG_Init 2 */
 
 }
 
@@ -1280,19 +1307,27 @@ void SysClock4()
     taskEXIT_CRITICAL();
 }
 
+void _Error_Handler(char const* file, uint32_t line)
+{
+  snprintf(error_message, sizeof(error_message), "Error: %s:%d\r\n", file, (int) line);
+  error_message[sizeof(error_message) - 1] = 0;
+
+  NVIC_SystemReset();
+}
+
 /* USER CODE END 4 */
 
-/* USER CODE BEGIN Header_startDefaultTask */
+/* USER CODE BEGIN Header_startIOEventTask */
 /**
-  * @brief  Function implementing the defaultTask thread.
-  * @param  argument: Not used 
+  * @brief  Function implementing the ioEventTask thread.
+  * @param  argument: Not used
   * @retval None
   */
-/* USER CODE END Header_startDefaultTask */
-void startDefaultTask(void const * argument)
+/* USER CODE END Header_startIOEventTask */
+__weak void startIOEventTask(void const * argument)
 {
   /* USER CODE BEGIN 5 */
-
+  UNUSED(argument);
   /* Infinite loop */
   for(;;)
   {
@@ -1333,10 +1368,6 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  snprintf(error_message, sizeof(error_message), "Error: %s:%d\r\n", file, line);
-  error_message[sizeof(error_message) - 1] = 0;
-
-  NVIC_SystemReset();
   /* USER CODE END Error_Handler_Debug */
 }
 
@@ -1351,7 +1382,7 @@ void Error_Handler(void)
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
-    _Error_Handler(file, line);
+    _Error_Handler((char const*) file, line);
   /* User can add his own implementation to report the file name and line number,
      tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */

@@ -8,6 +8,9 @@
   ERROR(#EXCEPTION); \
   abort()
 
+#define try if(true)
+#define catch(x) if(false)
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wfloat-equal"
 

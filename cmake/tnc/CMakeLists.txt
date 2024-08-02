@@ -5,10 +5,12 @@ add_library(tnc)
 
 # Enable CMake support for ASM and C languages
 enable_language(CXX ASM)
+set(BOOST_INCLUDEDIR ../../TNC)
+find_package(Boost REQUIRED)
 
 target_compile_definitions(tnc PUBLIC 
     USE_HAL_DRIVER 
-    STM32L4P5xx
+    STM32L432xx
     ARM_MATH_CM4
     BOOST_DISABLE_ASSERTS
     NUCLEOTNC
@@ -28,6 +30,7 @@ target_include_directories(tnc PUBLIC
     ../../Middlewares/ST/ARM/DSP/Inc
     ../../TNC
     ../../blaze
+    ${Boost_INCLUDE_DIRS}
 )
 
 target_sources(tnc PRIVATE
@@ -40,7 +43,6 @@ target_sources(tnc PRIVATE
     ../../TNC/Correlator.cpp
     ../../TNC/DCD.cpp
     ../../TNC/Demodulator.cpp
-    ../../TNC/Digipeater.cpp
     ../../TNC/FilterCoefficients.cpp
     ../../TNC/FirFilter.cpp
     ../../TNC/Fsk9600Demodulator.cpp

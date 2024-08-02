@@ -56,6 +56,8 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+void _Error_Handler(char const* file, uint32_t line) __attribute__((noreturn));
+void idleInterruptCallback(UART_HandleTypeDef* huart);
 
 /* USER CODE END EFP */
 
@@ -129,7 +131,7 @@ extern char error_message[80];
 extern char serial_number_64[13];
 extern osMutexId hardwareInitMutexHandle;
 
-#define CxxErrorHandler() _Error_Handler(const_cast<char*>(__FILE__), __LINE__)
+#define CxxErrorHandler() _Error_Handler(__FILE__, __LINE__)
 
 #ifdef __cplusplus
 extern "C" {

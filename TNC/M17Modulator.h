@@ -41,8 +41,8 @@ struct M17Modulator : Modulator
     osMessageQId dacOutputQueueHandle_{0};
     PTT* ptt_{nullptr};
     uint16_t volume_{4096};
-    volatile uint16_t delay_count = 0;      // TX Delay
-    volatile uint16_t stop_count = 0;       // Flush the RRC matched filter.
+    uint16_t delay_count = 0;      // TX Delay
+    uint16_t stop_count = 0;       // Flush the RRC matched filter.
     State state{State::STOPPED};
     float tmp[TRANSFER_LEN];
     bool send_tone = false;
@@ -67,6 +67,7 @@ struct M17Modulator : Modulator
 
     void loopback(const void* input) override
     {
+        UNUSED(input);
     }
 
     void init(const kiss::Hardware& hw) override;
