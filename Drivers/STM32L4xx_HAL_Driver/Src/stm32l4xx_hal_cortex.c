@@ -90,29 +90,12 @@
   ******************************************************************************
   * @attention
   *
-  * <h2><center>&copy; COPYRIGHT(c) 2017 STMicroelectronics</center></h2>
+  * Copyright (c) 2017 STMicroelectronics.
+  * All rights reserved.
   *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+  * This software is licensed under terms that can be found in the LICENSE file in
+  * the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -337,7 +320,7 @@ void HAL_NVIC_SetPendingIRQ(IRQn_Type IRQn)
 {
   /* Check the parameters */
   assert_param(IS_NVIC_DEVICE_IRQ(IRQn));
-
+  
   /* Set interrupt pending */
   NVIC_SetPendingIRQ(IRQn);
 }
@@ -355,7 +338,7 @@ uint32_t HAL_NVIC_GetPendingIRQ(IRQn_Type IRQn)
 {
   /* Check the parameters */
   assert_param(IS_NVIC_DEVICE_IRQ(IRQn));
-
+  
   /* Return 1 if pending else 0 */
   return NVIC_GetPendingIRQ(IRQn);
 }
@@ -371,7 +354,7 @@ void HAL_NVIC_ClearPendingIRQ(IRQn_Type IRQn)
 {
   /* Check the parameters */
   assert_param(IS_NVIC_DEVICE_IRQ(IRQn));
-
+  
   /* Clear pending interrupt */
   NVIC_ClearPendingIRQ(IRQn);
 }
@@ -434,22 +417,6 @@ __weak void HAL_SYSTICK_Callback(void)
 
 #if (__MPU_PRESENT == 1)
 /**
-  * @brief  Disable the MPU.
-  * @retval None
-  */
-void HAL_MPU_Disable(void)
-{
-  /* Make sure outstanding transfers are done */
-  __DMB();
-
-  /* Disable fault exceptions */
-  SCB->SHCSR &= ~SCB_SHCSR_MEMFAULTENA_Msk;
-  
-  /* Disable the MPU and clear the control register*/
-  MPU->CTRL = 0U;
-}
-
-/**
   * @brief  Enable the MPU.
   * @param  MPU_Control: Specifies the control mode of the MPU during hard fault, 
   *          NMI, FAULTMASK and privileged accessto the default memory 
@@ -463,14 +430,57 @@ void HAL_MPU_Disable(void)
 void HAL_MPU_Enable(uint32_t MPU_Control)
 {
   /* Enable the MPU */
-  MPU->CTRL = MPU_Control | MPU_CTRL_ENABLE_Msk;
-  
-  /* Enable fault exceptions */
-  SCB->SHCSR |= SCB_SHCSR_MEMFAULTENA_Msk;
-  
-  /* Ensure MPU settings take effects */
+  MPU->CTRL = (MPU_Control | MPU_CTRL_ENABLE_Msk);
+
+  /* Ensure MPU setting take effects */
   __DSB();
   __ISB();
+}
+
+
+/**
+  * @brief  Disable the MPU.
+  * @retval None
+  */
+void HAL_MPU_Disable(void)
+{
+  /* Make sure outstanding transfers are done */
+  __DMB();
+
+  /* Disable the MPU and clear the control register*/
+  MPU->CTRL  = 0;
+}
+
+/**
+  * @brief  Enable the MPU Region.
+  * @retval None
+  */
+void HAL_MPU_EnableRegion(uint32_t RegionNumber)
+{
+  /* Check the parameters */
+  assert_param(IS_MPU_REGION_NUMBER(RegionNumber));
+
+  /* Set the Region number */
+  MPU->RNR = RegionNumber;
+
+  /* Enable the Region */
+  SET_BIT(MPU->RASR, MPU_RASR_ENABLE_Msk);
+}
+
+/**
+  * @brief  Disable the MPU Region.
+  * @retval None
+  */
+void HAL_MPU_DisableRegion(uint32_t RegionNumber)
+{
+  /* Check the parameters */
+  assert_param(IS_MPU_REGION_NUMBER(RegionNumber));
+
+  /* Set the Region number */
+  MPU->RNR = RegionNumber;
+
+  /* Disable the Region */
+  CLEAR_BIT(MPU->RASR, MPU_RASR_ENABLE_Msk);
 }
 
 /**
@@ -484,38 +494,31 @@ void HAL_MPU_ConfigRegion(MPU_Region_InitTypeDef *MPU_Init)
   /* Check the parameters */
   assert_param(IS_MPU_REGION_NUMBER(MPU_Init->Number));
   assert_param(IS_MPU_REGION_ENABLE(MPU_Init->Enable));
-
+  assert_param(IS_MPU_INSTRUCTION_ACCESS(MPU_Init->DisableExec));
+  assert_param(IS_MPU_REGION_PERMISSION_ATTRIBUTE(MPU_Init->AccessPermission));
+  assert_param(IS_MPU_TEX_LEVEL(MPU_Init->TypeExtField));
+  assert_param(IS_MPU_ACCESS_SHAREABLE(MPU_Init->IsShareable));
+  assert_param(IS_MPU_ACCESS_CACHEABLE(MPU_Init->IsCacheable));
+  assert_param(IS_MPU_ACCESS_BUFFERABLE(MPU_Init->IsBufferable));
+  assert_param(IS_MPU_SUB_REGION_DISABLE(MPU_Init->SubRegionDisable));
+  assert_param(IS_MPU_REGION_SIZE(MPU_Init->Size));
   /* Set the Region number */
   MPU->RNR = MPU_Init->Number;
 
-  if ((MPU_Init->Enable) != RESET)
-  {
-    /* Check the parameters */
-    assert_param(IS_MPU_INSTRUCTION_ACCESS(MPU_Init->DisableExec));
-    assert_param(IS_MPU_REGION_PERMISSION_ATTRIBUTE(MPU_Init->AccessPermission));
-    assert_param(IS_MPU_TEX_LEVEL(MPU_Init->TypeExtField));
-    assert_param(IS_MPU_ACCESS_SHAREABLE(MPU_Init->IsShareable));
-    assert_param(IS_MPU_ACCESS_CACHEABLE(MPU_Init->IsCacheable));
-    assert_param(IS_MPU_ACCESS_BUFFERABLE(MPU_Init->IsBufferable));
-    assert_param(IS_MPU_SUB_REGION_DISABLE(MPU_Init->SubRegionDisable));
-    assert_param(IS_MPU_REGION_SIZE(MPU_Init->Size));
+/* Disable the Region */
+  CLEAR_BIT(MPU->RASR, MPU_RASR_ENABLE_Msk);
 
-    MPU->RBAR = MPU_Init->BaseAddress;
-    MPU->RASR = ((uint32_t)MPU_Init->DisableExec        << MPU_RASR_XN_Pos)   |
-                ((uint32_t)MPU_Init->AccessPermission   << MPU_RASR_AP_Pos)   |
-                ((uint32_t)MPU_Init->TypeExtField       << MPU_RASR_TEX_Pos)  |
-                ((uint32_t)MPU_Init->IsShareable        << MPU_RASR_S_Pos)    |
-                ((uint32_t)MPU_Init->IsCacheable        << MPU_RASR_C_Pos)    |
-                ((uint32_t)MPU_Init->IsBufferable       << MPU_RASR_B_Pos)    |
-                ((uint32_t)MPU_Init->SubRegionDisable   << MPU_RASR_SRD_Pos)  |
-                ((uint32_t)MPU_Init->Size               << MPU_RASR_SIZE_Pos) |
-                ((uint32_t)MPU_Init->Enable             << MPU_RASR_ENABLE_Pos);
-  }
-  else
-  {
-    MPU->RBAR = 0x00;
-    MPU->RASR = 0x00;
-  }
+  /* Apply configuration */
+  MPU->RBAR = MPU_Init->BaseAddress;
+  MPU->RASR = ((uint32_t)MPU_Init->DisableExec             << MPU_RASR_XN_Pos)   |
+              ((uint32_t)MPU_Init->AccessPermission        << MPU_RASR_AP_Pos)   |
+              ((uint32_t)MPU_Init->TypeExtField            << MPU_RASR_TEX_Pos)  |
+              ((uint32_t)MPU_Init->IsShareable             << MPU_RASR_S_Pos)    |
+              ((uint32_t)MPU_Init->IsCacheable             << MPU_RASR_C_Pos)    |
+              ((uint32_t)MPU_Init->IsBufferable            << MPU_RASR_B_Pos)    |
+              ((uint32_t)MPU_Init->SubRegionDisable        << MPU_RASR_SRD_Pos)  |
+              ((uint32_t)MPU_Init->Size                    << MPU_RASR_SIZE_Pos) |
+              ((uint32_t)MPU_Init->Enable                  << MPU_RASR_ENABLE_Pos);
 }
 #endif /* __MPU_PRESENT */
 
@@ -536,4 +539,3 @@ void HAL_MPU_ConfigRegion(MPU_Region_InitTypeDef *MPU_Init)
   * @}
   */
 
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
