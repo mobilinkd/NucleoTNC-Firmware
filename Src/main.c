@@ -1177,6 +1177,9 @@ void SysClock48()
       _Error_Handler(__FILE__, __LINE__);
     }
 
+    HAL_RCCEx_EnableMSIPLLMode();
+    if ((RCC->CR & RCC_CR_MSIPLLEN) == 0) printf("MSI PLL Failed\r\n");
+
     TPI->ACPR = 23;
 
     /**Configure the Systick interrupt time
@@ -1250,85 +1253,11 @@ void SysClock72()
     }
 
     HAL_RCCEx_EnableMSIPLLMode();
+    if ((RCC->CR & RCC_CR_MSIPLLEN) == 0) printf("MSI PLL Failed\r\n");
 
     /**Configure the Systick interrupt time
     */
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
-    taskEXIT_CRITICAL();
-}
-
-void SysClock80()
-{
-    RCC_OscInitTypeDef RCC_OscInitStruct;
-    RCC_ClkInitTypeDef RCC_ClkInitStruct;
-    RCC_PeriphCLKInitTypeDef PeriphClkInit;
-
-    if (HAL_RCC_GetHCLKFreq() == 80000000) return;
-
-    INFO("Setting 80MHz SysClock.");
-
-    taskENTER_CRITICAL();
-
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
-
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-    {
-      _Error_Handler(__FILE__, __LINE__);
-    }
-
-    RCC_OscInitStruct.OscillatorType = 0;
-    RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_MSI;
-    RCC_OscInitStruct.PLL.PLLM = 3;
-    RCC_OscInitStruct.PLL.PLLN = 20;
-    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
-    RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV4;
-    RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV4;
-    if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
-    {
-      _Error_Handler(__FILE__, __LINE__);
-    }
-
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
-    {
-      _Error_Handler(__FILE__, __LINE__);
-    }
-
-    PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
-    PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_SYSCLK;
-    if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-    {
-      _Error_Handler(__FILE__, __LINE__);
-    }
-
-    /**Configure the Systick interrupt time
-    */
-    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
-    taskEXIT_CRITICAL();
-}
-
-void SysClock4()
-{
-    RCC_ClkInitTypeDef RCC_ClkInitStruct;
-
-    taskENTER_CRITICAL();
-
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
-    RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
-
-    if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
-    {
-      _Error_Handler(__FILE__, __LINE__);
-    }
-
-    /**Configure the Systick interrupt time
-    */
-    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
-
     taskEXIT_CRITICAL();
 }
 

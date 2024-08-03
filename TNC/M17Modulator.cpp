@@ -11,16 +11,7 @@ void M17Modulator::init(const kiss::Hardware& hw)
 
     (void) hw; // unused
 
-    SysClock48();
-
-    // Configure 72MHz clock for 48kHz.
-    htim7.Init.Period = 999;
-    htim7.Init.Prescaler = 0;
-    if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
-    {
-        ERROR("htim7 init failed");
-        CxxErrorHandler();
-    }
+    __HAL_TIM_SET_AUTORELOAD(&htim7, 999);
 
     DAC_ChannelConfTypeDef sConfig;
 

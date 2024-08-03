@@ -65,7 +65,7 @@ void M17Demodulator::start()
     sConfig.Channel = AUDIO_IN;
     sConfig.Rank = ADC_REGULAR_RANK_1;
     sConfig.SingleDiff = ADC_SINGLE_ENDED;
-    sConfig.SamplingTime = ADC_SAMPLETIME_12CYCLES_5;
+    sConfig.SamplingTime = ADC_SAMPLETIME_24CYCLES_5;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
     if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
@@ -516,7 +516,7 @@ void M17Demodulator::do_frame(float filtered_sample, hdlc::IoFrame*& frame_resul
 
         std::copy(tmp, tmp + len, buffer.begin());
         auto valid = decoder(sync_word_type, buffer, frame_result, ber);
-        INFO("demod: %d, dt: %4dppm, evma: %5d‰, dev: %5d, freq: %5d, dcd: %d, index: %d, %d ber: %d",
+        INFO("demod: %d, dt: %4dppm, evma: %5dpm, dev: %5d, freq: %5d, dcd: %d, index: %d, %d ber: %d",
             int(decoder.state()), int(clock_recovery.clock_estimate() * 1000000),
             int(dev.error() * 1000), int(dev.deviation() * 1000),
             int(dev.offset() * 1000), int(dcd.level() * 1000),
@@ -648,6 +648,26 @@ hdlc::IoFrame* M17Demodulator::operator()(const q15_t* input)
     }
     dcd.update();
 //    str_indicator.off();
+
+#if 0
+    if (demodState == DemodState::UNLOCKED || demodState == DemodState::LSF_SYNC) {
+        if (clock_recovery.clock_estimate() > 0.0001) {
+            __HAL_TIM_SET_AUTORELOAD(&htim6, 1000);
+        } else if (clock_recovery.clock_estimate() < -0.0001) {
+            __HAL_TIM_SET_AUTORELOAD(&htim6, 998);
+        } else {
+            __HAL_TIM_SET_AUTORELOAD(&htim6, 999);
+        }
+    } else {
+        if (clock_recovery.clock_estimate() > 0.00005) {
+            __HAL_TIM_SET_AUTORELOAD(&htim6, 1000);
+        } else if (clock_recovery.clock_estimate() < -0.00005) {
+            __HAL_TIM_SET_AUTORELOAD(&htim6, 998);
+        } else {
+            __HAL_TIM_SET_AUTORELOAD(&htim6, 999);
+        }
+    }
+#endif
 
     return frame_result;
 }
