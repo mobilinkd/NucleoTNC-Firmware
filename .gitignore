@@ -13,3 +13,6 @@ _deps
 CMakeUserPresets.json
 build/
 STM32L432KCUx_FLASH.ld
+Drivers/
+Middlewares/
+
