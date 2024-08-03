@@ -4,40 +4,135 @@ Source code for STM32L432KC Nucleo32-based TNC (PCB & breadboard version).
 
 http://www.mobilinkd.com/2019/06/24/nucleotnc/
 
+# Generating STM32 Project
+
+The framework for this project is built using STM32CubeMX using the
+`NucleoTNC-Firmware.ioc` file.
+
+The current version of this project is built using:
+
+ - STM32CubeMX 6.12.0
+ - STM32Cube L4 1.18.1 HAL
+ - STM32CubeCLT 1.16.0
+
+STM32CubeMX will generate a CMake-based build for the firmware. This is a
+change from earlier versions which required using STM32CubeIDE to build the
+firmware.
+
 # Building the Firmware
 
-Use Eclipse with CDT and the GNU MCU Eclipse plugins.
+By default we use STM32CubeCLT (currently version 1.16.0) for CMake, Ninja,
+and the GNU utilities. But it can be built with stock CMake, Ninja and ARM GCC
+from your favorite Linux distribution.
 
-If you are porting this to another build platform, you will need to
-build the firmware using the same compiler and linker options.  As
-with most firmware projects, there is a linker script with defines
-the memory layout for for the Flash and SRAM.
+Configure the CMake build. Two common build types are "Debug" when debug
+output is needed, and "RelWithDebInfo" to produce a release binary with
+all debugging symbols available.
+
+From the root directory of the repo, run:
+
+    cmake -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake \
+    -S. -Bbuild/Debug -G Ninja
+
+    cmake --build build/Debug --target NucleoTNC-Firmware --
+
+To build the release version:
+
+    cmake -DCMAKE_BUILD_TYPE=RelWithDbgInfo \
+    -DCMAKE_TOOLCHAIN_FILE=cmake/gcc-arm-none-eabi.cmake \
+    -S. -Bbuild/RelWithDebInfo -G Ninja
+
+    cmake --build build/RelWithDebInfo --target NucleoTNC-Firmware --
+
+
+# Development
+
+I currently use Visual Studio Code on Linux, with the STM32 VS Code extension
+and the CMake extension. The STM32 VS Code extension (currently version 2.1)
+has some missing functionality and some unintuitive aspects. But it is better
+in most respects to using STM32CubeIDE.
+
+## Debugging
+
+The NucleoTNC firmware, when build in Debug mode, makes use of the SWD
+interface, including the SWO pin, on the STM32L432KC. However, the SWO pin
+is not connected to the Nucleo32's onboard debugger. A hardware modification
+is required to route the SWO pin from the STM32L432KC to an input pin on
+the STM32F103 which implements the ST/Link interface. This uses the LD3
+pin. The modification can be made in such a manner that either LD3 or SWO
+can be used. The only limitation is that one cannot use both. Since LD3
+is not used for the NucleoTNC, this is an unbotrusive modification.
+
+Take from the [ARM Mbed site](https://os.mbed.com/questions/80963/SWO-on-nucleo-L432KC/):
+
+> According to the Nucleo32 user manual and schematic here the SWO pin of the target has not been connected to the receiving pin on the STLINK interface. That is why the Serial Link viewer on the PC will not show any data. You may be able to fix that if you have good soldering skills. The SWO pin of the target 432KC is PB3 (as usual). This pin is connected to D13 on the Nucleo32 board. You may want to remove SB15 and you must not use LED1 in your code as this would disable the SWO function. Connect a thin wire to either D13 or the correct side of SB15. The wire must then be connected to pin31 on the F103 processor that is on the bottom of the nucleo board. This is the tricky soldering part, but it can be done. The pin31 is just below the 'c' in the word 'nucleo' printed above the F103.
+
+<table>
+  <tr>
+    <td> <img src="images/nucleo32_swo.jpg" alt="Nucleo32 hardware modification for SWO" style="width: 600px;"/></td>
+  </tr>
+</table>
+
+The modification only took a couple of minutes with 50mm of fine Kynar wire, solder,
+some no-clean flux, and a fine soldering iron tip. It is recommended to remove the
+IDD jumper while making the modification. (It must be replaced before use.)
+
+<table>
+  <tr>
+    <td> <img src="images/nucleo32_swo_d13.jpg" alt="Nucleo32 SWO modification at D13" style="width: 400px;"/></td>
+    <td> <img src="images/nucleo32_swo_f103.jpg" alt="Nucleo32 SWO modification at STM32F103" style="width: 400px;"/></td>
+    <td> <img src="images/nucleo32_swo_full.jpg" alt="Nucleo32 SWO modification overall" style="width: 400px;"/></td>
+  </tr>
+</table>
+
+For SWO output, you will also need to use the OpenOCD debug configuration. This
+is configured in the `launch.json` file. To set this up, run `ctrl-shift-p` and
+select `Debug: select and start debugging`, then select `Build and Debug Microcontroller - OpenOCD`.
+
+With that, you will see diagnostic output in the SWO terminal when debugging
+the Debug build of the firmware.
+
+   start
+   Mobilinkd NucleoTNC version 2.4.4
+   CPU core clock: 48000000Hz
+      Device UID: 004E005B 54365014 30303538
+   Bootloader version: 0xFF
+   Loading settings from EEPROM
+   Setting output gain: 255 (log 1 + 4095)
+   Setting input gain: 1
+   readLevels: start
+   dcd = 0
+   dcd = 0
+   exit readLevels
+   Vpp = 7, Vavg = 8229
+   Vmin = 8227, Vmax = 8234
+   DEMODULATOR
+   dcd = 0
+
+## Boost Dependency
+
+There is a dependency on Boost headers for the non-intrusive pointers.
+
+There is a symbolic link from TNC/boost to /usr/include/boost. You may
+need to adjust this link to build on your system. It's an expedient hack
+that will need to be adjusted in the near future.
 
 ## Blaze Dependency
 
 There is a new dependency as of 2.4.3 with the addition of the Kalman
 filter.  The firmware has a dependency on the Blaze C++ math library.
 
-    mkdir blaze
-    ln -s /usr/include/blaze blaze/
-
-This also requires (for now) that the firmware be built with exceptions
-enabled.
-
-## Example GCC Command-line
-
-Below are example compilation and linking lines for reference:
-
-    arm-none-eabi-g++ -mcpu=cortex-m4 -mthumb -mfloat-abi=softfp -mfpu=fpv4-sp-d16 -O2 -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-inline-functions -fsingle-precision-constant -fstack-usage -fstrict-aliasing -ffast-math -Wall -Wextra -Wlogical-op -Wfloat-equal -g -D__FPU_PRESENT=1 -DUSE_HAL_DRIVER -DARM_MATH_CM4 -DSTM32L432xx -D__weak=__attribute__((weak)) -DNUCLEOTNC=1 -I../Inc -I../Drivers/STM32L4xx_HAL_Driver/Inc -I/home/rob/workspace/Nucleo_L432KC_TNC/Inc -I/home/rob/workspace/Nucleo_L432KC_TNC/Drivers/STM32L4xx_HAL_Driver/Inc -I/home/rob/workspace/Nucleo_L432KC_TNC/Drivers/CMSIS/Include -I/home/rob/workspace/Nucleo_L432KC_TNC/Drivers/CMSIS/Device/ST/STM32L4xx/Include -I/home/rob/workspace/Nucleo_L432KC_TNC/Middlewares/Third_Party/FreeRTOS/Source/include -I/home/rob/workspace/Nucleo_L432KC_TNC/Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS -I/home/rob/workspace/Nucleo_L432KC_TNC/Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F -I/home/rob/workspace/Nucleo_L432KC_TNC/TNC -I/usr/arm-none-eabi/include -std=gnu++1z -fabi-version=9 -fno-exceptions -fno-rtti -fno-use-cxa-atexit -fno-threadsafe-statics -Wno-register -c -o TNC/HdlcFrame.o ../TNC/HdlcFrame.cpp 
-    arm-none-eabi-g++ -mcpu=cortex-m4 -mthumb -mfloat-abi=softfp -mfpu=fpv4-sp-d16 -O2 -fmessage-length=0 -fsigned-char -ffunction-sections -fdata-sections -fno-inline-functions -fsingle-precision-constant -fstack-usage -fstrict-aliasing -ffast-math -Wall -Wextra -Wlogical-op -Wfloat-equal -g -T /home/rob/workspace/Nucleo_L432KC_TNC/STM32L432KC_FLASH.ld -Xlinker --gc-sections -Wl,-Map,firmware.map --specs=nano.specs -o firmware.elf Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_adc.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_adc_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_cortex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_crc.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_crc_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dac.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dac_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dma.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_dma_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_flash.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_flash_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_flash_ramfunc.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_gpio.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_i2c.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_i2c_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_opamp.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_opamp_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_pwr.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_pwr_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_rcc.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_rcc_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_rng.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_rtc.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_rtc_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_tim.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_tim_ex.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_uart.o Drivers/STM32L4xx_HAL_Driver/Src/stm32l4xx_hal_uart_ex.o Middlewares/Third_Party/FreeRTOS/Source/CMSIS_RTOS/cmsis_os.o Middlewares/Third_Party/FreeRTOS/Source/croutine.o Middlewares/Third_Party/FreeRTOS/Source/event_groups.o Middlewares/Third_Party/FreeRTOS/Source/list.o Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.o Middlewares/Third_Party/FreeRTOS/Source/portable/MemMang/heap_4.o Middlewares/Third_Party/FreeRTOS/Source/queue.o Middlewares/Third_Party/FreeRTOS/Source/tasks.o Middlewares/Third_Party/FreeRTOS/Source/timers.o Src/arm_fir_f32.o Src/arm_fir_fast_q15.o Src/arm_fir_init_f32.o Src/arm_fir_init_q15.o Src/arm_fir_interpolate_init_q15.o Src/arm_fir_interpolate_q15.o Src/arm_offset_q15.o Src/arm_q15_to_float.o Src/freertos.o Src/main.o Src/stm32l4xx_hal_msp.o Src/stm32l4xx_hal_timebase_TIM.o Src/stm32l4xx_it.o Src/system_stm32l4xx.o TNC/AFSKModulator.o TNC/AFSKTestTone.o TNC/Afsk1200Demodulator.o TNC/AfskDemodulator.o TNC/AudioInput.o TNC/AudioLevel.o TNC/DCD.o TNC/Demodulator.o TNC/FilterCoefficients.o TNC/Fsk9600Demodulator.o TNC/Fsk9600Modulator.o TNC/Goertzel.o TNC/Golay24.o TNC/HdlcDecoder.o TNC/HdlcFrame.o TNC/IOEventTask.o TNC/Kiss.o TNC/KissHardware.o TNC/KissTask.o TNC/LEDIndicator.o TNC/Log.o TNC/M17.o TNC/M17Demodulator.o TNC/M17Encoder.o TNC/M17Modulator.o TNC/ModulatorTask.o TNC/NullPort.o TNC/PortInterface.o TNC/SerialPort.o newlib/_exit.o newlib/_sbrk.o newlib/_syscalls.o startup/startup_stm32l432xx.o 
-
-All of the macros defined on the compiler line are important in order
-to properly build the firmware.
+There is a symbolic link from TNC/boost to /usr/include/boost. You may
+need to adjust this link to build on your system. It's an expedient hack
+that will need to be adjusted in the near future.
 
 # Installing firmware
 
 Firmware can be installed via the storage interface (drag & drop), the
 on-board ST/LINK port, or via USB DFU.
+
+**Since the addition of M17 support, the size of the firmware file is too large to be installed via the storage interface.**
 
 ## Drag & Drop
 
@@ -58,6 +153,8 @@ by Eclipse and other IDEs to directly upload the firmware to the TNC.
     https://s3.amazonaws.com/mobilinkd/en.stm32cubeprog-1.4.0.zip
     This programmer will work on Linux, OS X, and Windows.
 
+    These days it is recommended to install STM32CubeCLT and use the programmer from that installation.
+
  2. Download the ELF file from the release (or that you have built from source).
 
  3. Run the STM32CubeProgrammer from the command-line. (Replace "firmware.elf" with the appropriate firmware filename.)
@@ -68,19 +165,6 @@ by Eclipse and other IDEs to directly upload the firmware to the TNC.
 
 ----
 
-## Important Note
-If you regenerate the STM32 code, please note that the LL ADC driver in
-the 1.12.0 version of the HAL driver is buggy.
-
-   Drivers/STM32L4xx_HAL_Driver/Inc/stm32l4xx_ll_adc.h
-
-This file has been modified to address the defect.  If it is replaced by
-STM32CubeMX, please ensure that the defect has been fixed.
-
-Details of the defect are available [on the ST community site](https://community.st.com/s/question/0D50X00009bLP0eSAG/adc-init-bug-with-optimization-o1-stm32l4 ADC init bug with optimization >= -O1).
-
-----
-
 ## TNC Build Instructions
 
-Please go here: [TNC Build Instructions](Build/NucleoTNC.ipynb)
+Please go here: [TNC Build Instructions](https://nbviewer.jupyter.org/github/mobilinkd/NucleoTNC/blob/master/Build/NucleoTNC.ipynb)
