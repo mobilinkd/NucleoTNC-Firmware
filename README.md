@@ -64,7 +64,7 @@ pin. The modification can be made in such a manner that either LD3 or SWO
 can be used. The only limitation is that one cannot use both. Since LD3
 is not used for the NucleoTNC, this is an unbotrusive modification.
 
-Take from the [ARM Mbed site](https://os.mbed.com/questions/80963/SWO-on-nucleo-L432KC/):
+Taken from the [ARM Mbed site](https://os.mbed.com/questions/80963/SWO-on-nucleo-L432KC/):
 
 > According to the Nucleo32 user manual and schematic here the SWO pin of the target has not been connected to the receiving pin on the STLINK interface. That is why the Serial Link viewer on the PC will not show any data. You may be able to fix that if you have good soldering skills. The SWO pin of the target 432KC is PB3 (as usual). This pin is connected to D13 on the Nucleo32 board. You may want to remove SB15 and you must not use LED1 in your code as this would disable the SWO function. Connect a thin wire to either D13 or the correct side of SB15. The wire must then be connected to pin31 on the F103 processor that is on the bottom of the nucleo board. This is the tricky soldering part, but it can be done. The pin31 is just below the 'c' in the word 'nucleo' printed above the F103.
 
@@ -93,22 +93,22 @@ select `Debug: select and start debugging`, then select `Build and Debug Microco
 With that, you will see diagnostic output in the SWO terminal when debugging
 the Debug build of the firmware.
 
-   start
-   Mobilinkd NucleoTNC version 2.4.4
-   CPU core clock: 48000000Hz
-      Device UID: 004E005B 54365014 30303538
-   Bootloader version: 0xFF
-   Loading settings from EEPROM
-   Setting output gain: 255 (log 1 + 4095)
-   Setting input gain: 1
-   readLevels: start
-   dcd = 0
-   dcd = 0
-   exit readLevels
-   Vpp = 7, Vavg = 8229
-   Vmin = 8227, Vmax = 8234
-   DEMODULATOR
-   dcd = 0
+    start
+    Mobilinkd NucleoTNC version 2.4.4
+    CPU core clock: 48000000Hz
+       Device UID: 004E005B 54365014 30303538
+    Bootloader version: 0xFF
+    Loading settings from EEPROM
+    Setting output gain: 255 (log 1 + 4095)
+    Setting input gain: 1
+    readLevels: start
+    dcd = 0
+    dcd = 0
+    exit readLevels
+    Vpp = 7, Vavg = 8229
+    Vmin = 8227, Vmax = 8234
+    DEMODULATOR
+    dcd = 0
 
 ## Boost Dependency
 
