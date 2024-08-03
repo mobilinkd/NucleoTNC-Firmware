@@ -74,7 +74,7 @@ target_sources(stm32cubemx INTERFACE
     ../../Middlewares/Third_Party/FreeRTOS/Source/portable/GCC/ARM_CM4F/port.c
     ../../Src/sysmem.c
     ../../Src/syscalls.c
-    ../../startup/startup_stm32l432xx.S
+    ../../startup_stm32l432xx.s
 )
 
 target_link_directories(stm32cubemx INTERFACE

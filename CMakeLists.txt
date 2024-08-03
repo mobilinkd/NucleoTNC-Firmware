@@ -63,6 +63,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
     BOOST_DISABLE_ASSERTS
     $<$<CONFIG:Debug>:KISS_LOGGING>
+    $<$<CONFIG:Debug>:KISS_LOG_LEVEL=1>
 )
 
 target_compile_options(stm32cubemx INTERFACE

@@ -133,7 +133,7 @@ struct AFSKModulator : Modulator
         }
     }
 
-    void tone(uint16_t freq) override {}
+    void tone(uint16_t freq) override { UNUSED(freq); }
 
     void fill(uint16_t* buffer, bool bit)
     {

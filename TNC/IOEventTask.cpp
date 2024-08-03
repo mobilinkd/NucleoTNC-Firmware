@@ -19,6 +19,7 @@
 #include "cmsis_os.h"
 
 extern osMessageQId hdlcOutputQueueHandle;
+extern IWDG_HandleTypeDef hiwdg;
 
 static PTT getPttStyle(const mobilinkd::tnc::kiss::Hardware& hardware)
 {
@@ -59,7 +60,8 @@ void startIOEventTask(void const*)
     /* Infinite loop */
     for (;;)
     {
-        osEvent evt = osMessageGet(ioEventQueueHandle, osWaitForever);
+        osEvent evt = osMessageGet(ioEventQueueHandle, 100);
+        HAL_IWDG_Refresh(&hiwdg);
         if (evt.status != osEventMessage)
             continue;
 

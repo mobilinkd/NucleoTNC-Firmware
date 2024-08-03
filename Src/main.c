@@ -176,7 +176,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+  __HAL_DBGMCU_FREEZE_IWDG();
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -192,6 +192,7 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
+  TPI->ACPR = 23;
 
   /* USER CODE END SysInit */
 
@@ -220,6 +221,46 @@ int main(void)
 #endif
   indicate_turning_on();
   encode_serial_number();
+
+  if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1024) != HAL_OK) Error_Handler();
+  if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_2) != HAL_OK) Error_Handler();
+  if (HAL_OPAMP_SelfCalibrate(&hopamp1) != HAL_OK) Error_Handler();
+  if (HAL_OPAMP_Start(&hopamp1) != HAL_OK) Error_Handler();
+  if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
+
+  FLASH_OBProgramInitTypeDef obInit = {0};
+  HAL_FLASHEx_OBGetConfig(&obInit);
+
+  if ((obInit.OptionType & OPTIONBYTE_USER) == RESET) {
+    printf("FAIL: option byte init\r\n");
+    Error_Handler();
+  }
+
+#if 1
+  // Do not erase SRAM2 during reset.
+  if ((obInit.USERConfig & FLASH_OPTR_SRAM2_RST) == RESET) {
+    obInit.OptionType = OPTIONBYTE_USER;
+    obInit.USERType = OB_USER_SRAM2_RST;
+    obInit.USERConfig = FLASH_OPTR_SRAM2_RST;
+    HAL_FLASH_OB_Unlock();
+    HAL_FLASHEx_OBProgram(&obInit);
+    HAL_FLASH_OB_Lock();
+    HAL_FLASH_OB_Launch();
+  }
+#endif
+
+#if 1
+  // Enable hardware parity check on SRAM2
+  if ((obInit.USERConfig & FLASH_OPTR_SRAM2_PE) == RESET) {
+    obInit.OptionType = OPTIONBYTE_USER;
+    obInit.USERType = OB_USER_SRAM2_PE;
+    obInit.USERConfig = FLASH_OPTR_SRAM2_PE;
+    HAL_FLASH_OB_Unlock();
+    HAL_FLASHEx_OBProgram(&obInit);
+    HAL_FLASH_OB_Lock();
+    HAL_FLASH_OB_Launch();
+  }
+#endif
   /* USER CODE END 2 */
 
   /* USER CODE BEGIN RTOS_MUTEX */
@@ -276,46 +317,6 @@ int main(void)
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
 #pragma GCC diagnostic pop
-
-  if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1024) != HAL_OK) Error_Handler();
-  if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_2) != HAL_OK) Error_Handler();
-  if (HAL_OPAMP_SelfCalibrate(&hopamp1) != HAL_OK) Error_Handler();
-  if (HAL_OPAMP_Start(&hopamp1) != HAL_OK) Error_Handler();
-  if (HAL_ADCEx_Calibration_Start(&hadc1, ADC_SINGLE_ENDED) != HAL_OK) Error_Handler();
-
-  FLASH_OBProgramInitTypeDef obInit = {0};
-  HAL_FLASHEx_OBGetConfig(&obInit);
-
-  if ((obInit.OptionType & OPTIONBYTE_USER) == RESET) {
-    printf("FAIL: option byte init\r\n");
-    Error_Handler();
-  }
-
-#if 1
-  // Do not erase SRAM2 during reset.
-  if ((obInit.USERConfig & FLASH_OPTR_SRAM2_RST) == RESET) {
-    obInit.OptionType = OPTIONBYTE_USER;
-    obInit.USERType = OB_USER_SRAM2_RST;
-    obInit.USERConfig = FLASH_OPTR_SRAM2_RST;
-    HAL_FLASH_OB_Unlock();
-    HAL_FLASHEx_OBProgram(&obInit);
-    HAL_FLASH_OB_Lock();
-    HAL_FLASH_OB_Launch();
-  }
-#endif
-
-#if 1
-  // Enable hardware parity check on SRAM2
-  if ((obInit.USERConfig & FLASH_OPTR_SRAM2_PE) == RESET) {
-    obInit.OptionType = OPTIONBYTE_USER;
-    obInit.USERType = OB_USER_SRAM2_PE;
-    obInit.USERConfig = FLASH_OPTR_SRAM2_PE;
-    HAL_FLASH_OB_Unlock();
-    HAL_FLASHEx_OBProgram(&obInit);
-    HAL_FLASH_OB_Lock();
-    HAL_FLASH_OB_Launch();
-  }
-#endif
 
   /* USER CODE END RTOS_QUEUES */
 
@@ -647,7 +648,7 @@ static void MX_IWDG_Init(void)
 
   /* USER CODE END IWDG_Init 1 */
   hiwdg.Instance = IWDG;
-  hiwdg.Init.Prescaler = IWDG_PRESCALER_4;
+  hiwdg.Init.Prescaler = IWDG_PRESCALER_64;
   hiwdg.Init.Window = 4095;
   hiwdg.Init.Reload = 4095;
   if (HAL_IWDG_Init(&hiwdg) != HAL_OK)
@@ -1035,9 +1036,6 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(GPIOA, PTT_M_Pin|PTT_S_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD3_GPIO_Port, LD3_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(AUDIO_OUT_ATTEN_GPIO_Port, AUDIO_OUT_ATTEN_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : PA6 */
@@ -1065,13 +1063,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD3_Pin */
-  GPIO_InitStruct.Pin = LD3_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD3_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pin : AUDIO_OUT_ATTEN_Pin */
   GPIO_InitStruct.Pin = AUDIO_OUT_ATTEN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
@@ -1095,6 +1086,32 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+#if 1
+_ssize_t _write_r(struct _reent *r, int fd, const void *ptr, size_t len);
+
+_ssize_t _write_r(struct _reent *r, int fd, const void *ptr, size_t len)
+{
+  UNUSED(r);
+  UNUSED(fd);
+#ifdef KISS_LOGGING
+    for (size_t i = 0; i != len; ++i)
+      ITM_SendChar(((char*) ptr)[i]);
+#endif
+  return len;
+}
+
+int _write(int file, char *ptr, int len);
+
+int _write(int file, char *ptr, int len) {
+    UNUSED(file);
+#ifdef KISS_LOGGING
+    for (int i = 0; i != len; ++i)
+      ITM_SendChar(ptr[i]);
+#endif
+    return len;
+
+}
+#endif
 
 void SysClock48()
 {
@@ -1115,6 +1132,8 @@ void SysClock48()
     {
       _Error_Handler(__FILE__, __LINE__);
     }
+
+    TPI->ACPR = 7;
 
     /**Configure the Systick interrupt time
     */
@@ -1158,6 +1177,8 @@ void SysClock48()
       _Error_Handler(__FILE__, __LINE__);
     }
 
+    TPI->ACPR = 23;
+
     /**Configure the Systick interrupt time
     */
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
@@ -1186,6 +1207,8 @@ void SysClock72()
       _Error_Handler(__FILE__, __LINE__);
     }
 
+    TPI->ACPR = 7;
+
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
     RCC_OscInitStruct.MSIState = RCC_MSI_ON;
     RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
@@ -1209,6 +1232,8 @@ void SysClock72()
     {
       _Error_Handler(__FILE__, __LINE__);
     }
+
+    TPI->ACPR = 35;
 
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
     PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;

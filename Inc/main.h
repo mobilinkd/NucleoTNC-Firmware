@@ -48,6 +48,11 @@ extern "C" {
 /* Exported macro ------------------------------------------------------------*/
 /* USER CODE BEGIN EM */
 
+// Work around VS Code Intellisense bug
+#ifdef __INTELLISENSE__
+#define __FILE_NAME__ __FILE__
+#endif
+
 /* USER CODE END EM */
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
@@ -89,8 +94,6 @@ void idleInterruptCallback(UART_HandleTypeDef* huart);
 #define SWCLK_GPIO_Port GPIOA
 #define VCP_RX_Pin GPIO_PIN_15
 #define VCP_RX_GPIO_Port GPIOA
-#define LD3_Pin GPIO_PIN_3
-#define LD3_GPIO_Port GPIOB
 #define AUDIO_OUT_ATTEN_Pin GPIO_PIN_5
 #define AUDIO_OUT_ATTEN_GPIO_Port GPIOB
 
@@ -131,7 +134,7 @@ extern char error_message[80];
 extern char serial_number_64[13];
 extern osMutexId hardwareInitMutexHandle;
 
-#define CxxErrorHandler() _Error_Handler(__FILE__, __LINE__)
+#define CxxErrorHandler() _Error_Handler(__FILE_NAME__, __LINE__)
 
 #ifdef __cplusplus
 extern "C" {

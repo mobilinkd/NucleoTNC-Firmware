@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.22)
 
 project(tnc)
-add_library(tnc)
+add_library(tnc OBJECT)
 
 # Enable CMake support for ASM and C languages
 enable_language(CXX ASM)
