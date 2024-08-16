@@ -398,7 +398,7 @@ void M17Encoder::create_link_setup(tnc::hdlc::IoFrame* frame, FrameType type)
 {
     using namespace mobilinkd::tnc::kiss;
 
-    const LinkSetupFrame::call_t SRC = {'M','B','L','K','D','T','N','C','3',0};
+    const LinkSetupFrame::call_t SRC = {'M','B','L','K','D','N','T','N','C',0};
 
     switch (type)
     {
@@ -570,8 +570,6 @@ void M17Encoder::encoderTask(void const*)
     {
         osEvent evt = osMessageGet(m17EncoderInputQueueHandle, osWaitForever);
         if (evt.status != osEventMessage) continue;
-
-        HAL_IWDG_Refresh(&hiwdg);
 
         auto frame = static_cast<IoFrame*>(evt.value.p);
         if (frame->size() == 50)

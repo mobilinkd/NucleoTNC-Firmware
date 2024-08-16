@@ -1,4 +1,4 @@
-// Copyright 2020 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2020-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
 #pragma once
@@ -11,6 +11,7 @@
 #include "HdlcDecoder.hpp"
 #include "KissHardware.hpp"
 #include "StandardDeviation.hpp"
+#include "TimerAdjust.h"
 
 namespace mobilinkd { namespace tnc {
 
@@ -28,7 +29,7 @@ struct Descrambler
 
 struct Fsk9600Demodulator : IDemodulator
 {
-    static constexpr size_t FILTER_TAP_NUM = 132;
+    static constexpr size_t FILTER_TAP_NUM = 92;
     static constexpr uint32_t ADC_BLOCK_SIZE = 384;
     static_assert(audio::ADC_BUFFER_SIZE >= ADC_BLOCK_SIZE);
 
@@ -49,8 +50,10 @@ struct Fsk9600Demodulator : IDemodulator
     hdlc::NewDecoder hdlc_decoder_;
     StandardDeviation snr_;
     bool decoding_{false};
+    TimerAdjust<375, 192000, 7680> adcTimerAdjust{&htim6};
 
     virtual ~Fsk9600Demodulator() {}
+    size_t get_adc_exponent() const override { return 2; }
 
     void start() override
     {
@@ -61,12 +64,6 @@ struct Fsk9600Demodulator : IDemodulator
         demod_filter.init(bpf);
         passall(kiss::settings().options & KISS_OPTION_PASSALL);
 
-        hadc1.Init.OversamplingMode = ENABLE;
-        if (HAL_ADC_Init(&hadc1) != HAL_OK)
-        {
-            CxxErrorHandler();
-        }
-
         ADC_ChannelConfTypeDef sConfig;
 
         sConfig.Channel = AUDIO_IN;
@@ -75,15 +72,20 @@ struct Fsk9600Demodulator : IDemodulator
         sConfig.SamplingTime = ADC_SAMPLETIME_6CYCLES_5;
         sConfig.OffsetNumber = ADC_OFFSET_NONE;
         sConfig.Offset = 0;
-        if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+        if (HAL_ADC_ConfigChannel(&DEMODULATOR_ADC_HANDLE, &sConfig) != HAL_OK)
             CxxErrorHandler();
 
-        startADC(374, ADC_BLOCK_SIZE);
+        audio::virtual_ground = 8192;
+
+        mobilinkd::adcTimerAdjust = nullptr;
+
+        startADC(374, ADC_BLOCK_SIZE, false);
     }
 
     void stop() override
     {
         stopADC();
+        mobilinkd::adcTimerAdjust = nullptr;
         locked_ = false;
     }
 

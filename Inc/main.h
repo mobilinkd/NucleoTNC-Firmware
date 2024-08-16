@@ -38,6 +38,16 @@ extern "C" {
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
 
+typedef enum {
+    RESET_CAUSE_UNKNOWN,
+    RESET_CAUSE_SOFT,       // Software reset
+    RESET_CAUSE_HARD,       // Reset button
+    RESET_CAUSE_BOR,        // Brown-out reset
+    RESET_CAUSE_WUF,        // GPIO wake-up
+    RESET_CAUSE_WUTF,       // Timer wake-up
+    RESET_CAUSE_IWDG        // Independent watchdog
+} ResetCause;
+
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -53,6 +63,8 @@ extern "C" {
 #define __FILE_NAME__ __FILE__
 #endif
 
+#define DELAY(x) do { if (xTaskGetSchedulerState() == taskSCHEDULER_RUNNING) osDelay(x); else HAL_Delay(x); } while (0);
+
 /* USER CODE END EM */
 
 void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
@@ -62,11 +74,18 @@ void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
 void _Error_Handler(char const* file, uint32_t line) __attribute__((noreturn));
+void _Error_Handler2(char *file, int line, HAL_StatusTypeDef status) __attribute__((noreturn));
 void idleInterruptCallback(UART_HandleTypeDef* huart);
+void ADC_TIMER_PeriodElapsedCallback(void);
+void DAC_TIMER_PeriodElapsedCallback(void);
 
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define EEPROM_PAGE_SIZE 32
+#define EEPROM_CAPACITY 4096
+#define EEPROM_WRITE_TIME 10
+#define EEPROM_ADDRESS 0xA0
 #define VCP_TX_Pin GPIO_PIN_2
 #define VCP_TX_GPIO_Port GPIOA
 #define AUDIO_IN_Pin GPIO_PIN_3
@@ -99,15 +118,6 @@ void idleInterruptCallback(UART_HandleTypeDef* huart);
 
 /* USER CODE BEGIN Private defines */
 
-// #define TNC_HAS_LSCO -- Not available on NucleoTNC
-// #define TNC_HAS_SWO -- Not available on NucleoTNC
-#define TNC_HAS_LSE
-// #define TNC_HAS_HSE -- Not available on NucleoTNC
-// #define TNC_HAS_MCO -- Not available on NucleoTNC
-// #define TNC_HAS_BT -- Not available on NucleoTNC
-// #define TNC_HAS_BAT -- Not available on NucleoTNC
-// #define TNC_HAS_USB -- Not available on NucleoTNC
-
 // Compatibility defines
 // #define BATTERY_ADC_HANDLE hadc2
 // #define BATTERY_ADC_CHANNEL ADC_CHANNEL_16
@@ -116,32 +126,40 @@ void idleInterruptCallback(UART_HandleTypeDef* huart);
 #define SERIAL_UART huart2
 #define AUDIO_ADC_HANDLE hadc1
 #define AUDIO_ADC_CHANNEL CHANNEL_8
+#define DEMODULATOR_ADC_HANDLE hadc1
 
 //#define USB_CE_Pin GPIO_PIN_4
 //#define USB_CE_GPIO_Port GPIOB
-
-#define EEPROM_ADDRESS 0xA0
-#define EEPROM_CAPACITY 4096
-#define EEPROM_PAGE_SIZE 32
-#define EEPROM_WRITE_TIME 5
 
 #define CMD_USER_BUTTON_DOWN 1
 #define CMD_USER_BUTTON_UP 2
 #define CMD_SET_PTT_SIMPLEX 3
 #define CMD_SET_PTT_MULTIPLEX 4
+#define CMD_RESTORE_SYSCLK 5
+
+// #define TNC_HAS_LSCO -- Not available on NucleoTNC
+// Nucleo32 board can be modified to capture SWO.
+#define TNC_HAS_SWO
+#define TNC_HAS_LSE
+// #define TNC_HAS_HSE -- Not available on NucleoTNC
+// #define TNC_HAS_MCO -- Not available on NucleoTNC
+// #define TNC_HAS_BT -- Not available on NucleoTNC
+// #define TNC_HAS_BAT -- Not available on NucleoTNC
+// #define TNC_HAS_USB -- Not available on NucleoTNC
+// #define TNC_HAS_OTP -- Not used on NucleoTNC
 
 extern char error_message[80];
 extern char serial_number_64[13];
-extern osMutexId hardwareInitMutexHandle;
 
 #define CxxErrorHandler() _Error_Handler(__FILE_NAME__, __LINE__)
+#define CxxErrorHandler2(x) _Error_Handler2(const_cast<char*>(__FILE_NAME__), __LINE__, x)
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void SysClock72(void);
 void SysClock48(void);
+void SysClock72(void);
 
 #ifdef __cplusplus
 }

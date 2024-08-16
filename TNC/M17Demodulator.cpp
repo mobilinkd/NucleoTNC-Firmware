@@ -54,12 +54,6 @@ void M17Demodulator::start()
     scale = 1.f / 32768.f * polarity;
     audio::virtual_ground = (VREF + 1) / 2;
 
-    hadc1.Init.OversamplingMode = ENABLE;
-    if (HAL_ADC_Init(&hadc1) != HAL_OK)
-    {
-        CxxErrorHandler();
-    }
-
     ADC_ChannelConfTypeDef sConfig;
 
     sConfig.Channel = AUDIO_IN;
@@ -68,9 +62,10 @@ void M17Demodulator::start()
     sConfig.SamplingTime = ADC_SAMPLETIME_24CYCLES_5;
     sConfig.OffsetNumber = ADC_OFFSET_NONE;
     sConfig.Offset = 0;
-    if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+    if (HAL_ADC_ConfigChannel(&DEMODULATOR_ADC_HANDLE, &sConfig) != HAL_OK)
         CxxErrorHandler();
 
+    mobilinkd::adcTimerAdjust = adcTimerAdjust;
     startADC(999, ADC_BLOCK_SIZE);
 //    getModulator().start_loopback();
     dcd_off();
@@ -102,7 +97,7 @@ void M17Demodulator::update_values(uint8_t index)
 void M17Demodulator::dcd_on()
 {
     // Data carrier newly detected.
-    INFO("dcd = %d", int(dcd.level() * 1000));
+    INFO("dcd on = %d", int(dcd.level() * 1000));
     dcd_ = true;
     if (demodState == DemodState::UNLOCKED)
     {
@@ -118,7 +113,7 @@ void M17Demodulator::dcd_on()
 void M17Demodulator::dcd_off()
 {
     // Just lost data carrier.
-    INFO("dcd = %d", int(dcd.level() * 1000));
+    INFO("dcd off = %d", int(dcd.level() * 1000));
     demodState = DemodState::UNLOCKED;
     dcd_ = false;
 }
@@ -204,7 +199,7 @@ void M17Demodulator::do_unlocked()
     }
     sync_index = packet_sync(correlator);
     sync_updated = packet_sync.updated();
-    if (sync_updated < 0)
+    if (sync_updated)
     {
         sync_count = MAX_SYNC_COUNT;
         missing_sync_count = 0;
@@ -213,8 +208,11 @@ void M17Demodulator::do_unlocked()
         sample_index = sync_index;
         update_values(sync_index);
         demodState = DemodState::FRAME;
-        sync_word_type = M17FrameDecoder::SyncWordType::BERT;
-        INFO("B sync %d", int(sync_index));
+        // There is almost no sense in recovering a packet after being unlocked.
+        // Packet mode requires the reception of all frames. No frame retransmit
+        // (ARQ) feature exists in M17.
+        sync_word_type = sync_updated > 0 ? M17FrameDecoder::SyncWordType::PACKET : M17FrameDecoder::SyncWordType::BERT;
+        INFO("KB sync %d", int(sync_index));
     }
 }
 
@@ -385,7 +383,7 @@ void M17Demodulator::do_packet_sync()
     auto sync_index = packet_sync(correlator);
     auto sync_updated = packet_sync.updated();
 
-    if (sync_updated)
+    if (sync_updated > 0)
     {
         missing_sync_count = 0;
         update_values(sync_index);
@@ -441,12 +439,12 @@ void M17Demodulator::do_bert_sync()
         missing_sync_count = 0;
         update_values(sync_index);
         sync_word_type = M17FrameDecoder::SyncWordType::BERT;
-        INFO("b sync");
+        INFO("b sync %d", int(sync_index));
         demodState = DemodState::SYNC_WAIT;
     }
     else if (sync_count > MAX_SYNC_COUNT)
     {
-        if (ber >= 0 && ber < STREAM_COST_LIMIT)
+        if (ber >= 0 && ber < BERT_COST_LIMIT)
         {
             // Sync word missed but we are still decoding a stream reasonably well.
             if (!missing_sync_count) missing_sync_count = 1;
@@ -516,7 +514,7 @@ void M17Demodulator::do_frame(float filtered_sample, hdlc::IoFrame*& frame_resul
 
         std::copy(tmp, tmp + len, buffer.begin());
         auto valid = decoder(sync_word_type, buffer, frame_result, ber);
-        INFO("demod: %d, dt: %4dppm, evma: %5dpm, dev: %5d, freq: %5d, dcd: %d, index: %d, %d ber: %d",
+        INFO("demod: %d, dt: %4dppm, evma: %4dpm, dev: %5d, freq: %5d, dcd: %d, index: %d, %d ber: %d",
             int(decoder.state()), int(clock_recovery.clock_estimate() * 1000000),
             int(dev.error() * 1000), int(dev.deviation() * 1000),
             int(dev.offset() * 1000), int(dcd.level() * 1000),
@@ -583,9 +581,6 @@ hdlc::IoFrame* M17Demodulator::operator()(const q15_t* input)
         return frame_result;
     }
 
-    // Do adc_micro_adjustment() here?
-    // adc_micro_adjustment();
-
     for (size_t i = 0; i != ADC_BLOCK_SIZE; i++) {
         demod_buffer[i] = float(input[i]) * scale;
     }
@@ -605,7 +600,6 @@ hdlc::IoFrame* M17Demodulator::operator()(const q15_t* input)
                 clock_recovery.reset(sync_sample_index);
                 need_clock_reset_ = false;
                 sample_index = sync_sample_index;
-                adc_timing_adjust = 0;
             }
             else if (need_clock_update_) // must avoid update immediately after reset.
             {
@@ -648,26 +642,6 @@ hdlc::IoFrame* M17Demodulator::operator()(const q15_t* input)
     }
     dcd.update();
 //    str_indicator.off();
-
-#if 0
-    if (demodState == DemodState::UNLOCKED || demodState == DemodState::LSF_SYNC) {
-        if (clock_recovery.clock_estimate() > 0.0001) {
-            __HAL_TIM_SET_AUTORELOAD(&htim6, 1000);
-        } else if (clock_recovery.clock_estimate() < -0.0001) {
-            __HAL_TIM_SET_AUTORELOAD(&htim6, 998);
-        } else {
-            __HAL_TIM_SET_AUTORELOAD(&htim6, 999);
-        }
-    } else {
-        if (clock_recovery.clock_estimate() > 0.00005) {
-            __HAL_TIM_SET_AUTORELOAD(&htim6, 1000);
-        } else if (clock_recovery.clock_estimate() < -0.00005) {
-            __HAL_TIM_SET_AUTORELOAD(&htim6, 998);
-        } else {
-            __HAL_TIM_SET_AUTORELOAD(&htim6, 999);
-        }
-    }
-#endif
 
     return frame_result;
 }

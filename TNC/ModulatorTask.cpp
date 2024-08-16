@@ -11,12 +11,34 @@
 #include "KissHardware.hpp"
 #include "main.h"
 #include "Log.h"
+#include "TimerAdjust.h"
 
 mobilinkd::tnc::SimplexPTT simplexPtt;
 mobilinkd::tnc::MultiplexPTT multiplexPtt;
 
 mobilinkd::tnc::Modulator* modulator;
 mobilinkd::Encoder* encoder;
+
+std::function<void(void)> mobilinkd::dacTimerAdjust;
+
+/**
+ * Micro-adjust the DAC timer to account for a nominal +107ppm inaccuracy
+ * of the MSI in PLL mode on Nucleo32 board at 48MHz. The actual clock
+ * is 48005120Hz (1465 * 32768Hz), a fixed multiple of the LSE.
+ * 
+ * See https://www.st.com/resource/en/datasheet/stm32l432kb.pdf
+ * MSI electical characteristics (pp 97) when running at 48MHz.
+ * 
+ * The LSE on the Nucleo32 board (NX3215SA-32.768K-EXS00A-MU00525) has an
+ * accuracy of 20ppm. 
+ * 
+ * Adjust the DAC timer reload register by 1 every Nth sample. The induced
+ * jitter is imperceptible given the baseband sample rate.
+ */
+extern "C" void DAC_TIMER_PeriodElapsedCallback(void)
+{
+    if (mobilinkd::dacTimerAdjust) mobilinkd::dacTimerAdjust();
+}
 
 // DMA Conversion half complete.
 extern "C" void HAL_DAC_ConvHalfCpltCallbackCh1(DAC_HandleTypeDef*) {
@@ -121,18 +143,13 @@ void startModulatorTask(void const*)
 {
     using namespace mobilinkd::tnc::kiss;
 
-    // Wait until hardware is initialized before creating modulator.
-    osMutexWait(hardwareInitMutexHandle, osWaitForever);
-
     while (true)
     {
         modulator = &(getModulator());
         encoder = &(getEncoder());
-
         updatePtt();
-
-        getModulator().init(settings());
-
+        modulator->init(settings());
+        encoder->updateModulator();
         encoder->update_settings();
         encoder->run();
     }

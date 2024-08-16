@@ -18,6 +18,8 @@
 #include "M17Framer.h"
 #include "Modulator.hpp"
 #include "ModulatorTask.hpp"
+#include "power.h"
+#include "TimerAdjust.h"
 #include "Util.h"
 
 #include <arm_math.h>
@@ -44,21 +46,22 @@ struct M17Demodulator : IDemodulator
     static constexpr float sample_rate = SAMPLE_RATE;
     static constexpr float symbol_rate = SYMBOL_RATE;
 
-    static constexpr int STREAM_COST_LIMIT = 80;
-    static constexpr int PACKET_COST_LIMIT = 60;
+    static constexpr int STREAM_COST_LIMIT = 50;
+    static constexpr int PACKET_COST_LIMIT = 40;
+    static constexpr int BERT_COST_LIMIT = 85;
     static constexpr uint8_t MAX_MISSING_SYNC = 10;
     static constexpr uint8_t MIN_SYNC_COUNT = 78;
     static constexpr uint8_t MAX_SYNC_COUNT = 87;
     static constexpr float EOT_TRIGGER_LEVEL = 0.1;
 
     using audio_filter_t = FirFilter<ADC_BLOCK_SIZE, m17::FILTER_TAP_NUM>;
-    using sync_word_t = m17::SyncWord<m17::Correlator>;
+    using sync_word_t = SyncWord<m17::Correlator>;
 
     enum class DemodState { UNLOCKED, LSF_SYNC, STREAM_SYNC, PACKET_SYNC, BERT_SYNC, SYNC_WAIT, FRAME };
 
     audio_filter_t demod_filter;
     std::array<float, ADC_BLOCK_SIZE> demod_buffer;
-    m17::DataCarrierDetect<float, SAMPLE_RATE, 400> dcd{2400, 4800, 0.8f, 10.0f};
+    DataCarrierDetect<float, SAMPLE_RATE, 400> dcd{2400, 3600, 0.8f, 10.0f};
     m17::ClockRecovery<float, SAMPLES_PER_SYMBOL> clock_recovery;
 
     m17::Correlator correlator;
@@ -77,19 +80,35 @@ struct M17Demodulator : IDemodulator
     M17FrameDecoder::SyncWordType sync_word_type = M17FrameDecoder::SyncWordType::LSF;
     uint8_t sample_index = 0;
 
+    /**
+     * Micro-adjust the ADC timer to account for a nominal +107ppm inaccuracy
+     * of the MSI in PLL mode on Nucleo32 board at 48MHz. The actual clock
+     * is 48005120Hz (1465 * 32768Hz), which is a fixed multiple of the LSE.
+     * 
+     * See https://www.st.com/resource/en/datasheet/stm32l432kb.pdf
+     * MSI electical characteristics (pp 97) when running at 48MHz.
+     * 
+     * The LSE on the Nucleo32 board (NX3215SA-32.768K-EXS00A-MU00525) has an
+     * accuracy of 20ppm. 
+     * 
+     * Adjust the sample rate by 1/1000 every Nth sample block. This is a nearly
+     * imperceptible jitter in sampling given the 48kHz sample rate.
+     */
+    TimerAdjust<1000, 48000, 5120> adcTimerAdjust{&htim6};
+
     bool dcd_ = false;
-	bool need_clock_reset_ = false;
-	bool need_clock_update_ = false;
+    bool need_clock_reset_ = false;
+    bool need_clock_update_ = false;
 
     bool passall_ = false;
     int ber = -1;
     int16_t sync_count = 0;
     uint16_t missing_sync_count = 0;
     uint8_t sync_sample_index = 0;
-    int16_t adc_timing_adjust = 0;
 
 
     virtual ~M17Demodulator() {}
+    size_t get_adc_exponent() const override { return 2; }
 
     void start() override;
 
@@ -110,6 +129,7 @@ struct M17Demodulator : IDemodulator
 //        getModulator().stop_loopback();
         stopADC();
         dcd_off();
+        mobilinkd::adcTimerAdjust = nullptr;
     }
 
     bool locked() const override
@@ -144,7 +164,9 @@ struct M17Demodulator : IDemodulator
 
     uint32_t readBatteryLevel() override
     {
-#ifndef NUCLEOTNC
+#if defined(STM32L4P5xx) || defined(STM32L4Q5xx)
+        return read_battery_level();
+#elif !(defined(NUCLEOTNC))
         TNC_DEBUG("enter M17Demodulator::readBatteryLevel");
 
         ADC_ChannelConfTypeDef sConfig;
@@ -155,7 +177,7 @@ struct M17Demodulator : IDemodulator
         sConfig.SamplingTime = ADC_SAMPLETIME_247CYCLES_5;
         sConfig.OffsetNumber = ADC_OFFSET_NONE;
         sConfig.Offset = 0;
-        if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+        if (HAL_ADC_ConfigChannel(&BATTERY_ADC_HANDLE, &sConfig) != HAL_OK)
             CxxErrorHandler();
 
         htim6.Init.Period = 48000;
@@ -164,17 +186,17 @@ struct M17Demodulator : IDemodulator
         if (HAL_TIM_Base_Start(&htim6) != HAL_OK)
             CxxErrorHandler();
 
-        if (HAL_ADC_Start(&hadc1) != HAL_OK) CxxErrorHandler();
-        if (HAL_ADC_PollForConversion(&hadc1, 3) != HAL_OK) CxxErrorHandler();
-        auto vrefint = HAL_ADC_GetValue(&hadc1);
-        if (HAL_ADC_Stop(&hadc1) != HAL_OK) CxxErrorHandler();
+        if (HAL_ADC_Start(&BATTERY_ADC_HANDLE) != HAL_OK) CxxErrorHandler();
+        if (HAL_ADC_PollForConversion(&BATTERY_ADC_HANDLE, 3) != HAL_OK) CxxErrorHandler();
+        auto vrefint = HAL_ADC_GetValue(&BATTERY_ADC_HANDLE);
+        if (HAL_ADC_Stop(&BATTERY_ADC_HANDLE) != HAL_OK) CxxErrorHandler();
 
         // Disable battery charging while measuring battery voltage.
         auto usb_ce = gpio::USB_CE::get();
         gpio::USB_CE::on();
 
         gpio::BAT_DIVIDER::off();
-        HAL_Delay(1);
+        DELAY(1);
 
         sConfig.Channel = BATTERY_ADC_CHANNEL;
         if (HAL_ADC_ConfigChannel(&BATTERY_ADC_HANDLE, &sConfig) != HAL_OK)

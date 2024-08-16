@@ -7,12 +7,16 @@
 #include "Modulator.hpp"
 #include "HdlcFrame.hpp"
 #include "M17.h"
+#include "TimerAdjust.h"
 
 #include <arm_math.h>
 
 #include <array>
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
+
+extern IWDG_HandleTypeDef hiwdg;
 
 namespace mobilinkd { namespace tnc {
 
@@ -41,11 +45,12 @@ struct M17Modulator : Modulator
     osMessageQId dacOutputQueueHandle_{0};
     PTT* ptt_{nullptr};
     uint16_t volume_{4096};
-    uint16_t delay_count = 0;      // TX Delay
-    uint16_t stop_count = 0;       // Flush the RRC matched filter.
+    std::atomic<uint16_t> delay_count = 0;      // TX Delay
+    std::atomic<uint16_t> stop_count = 0;       // Flush the RRC matched filter.
     State state{State::STOPPED};
     float tmp[TRANSFER_LEN];
     bool send_tone = false;
+    TimerAdjust<1000, 48000, 5120> dacTimerAdjust{&htim7};
 
     M17Modulator(osMessageQId queue, PTT* ptt)
     : dacOutputQueueHandle_(queue), ptt_(ptt)
@@ -77,6 +82,7 @@ struct M17Modulator : Modulator
         state = State::STOPPED;
         HAL_DAC_Stop(&hdac1, DAC_CHANNEL_1);
         HAL_TIM_Base_Stop(&htim7);
+        mobilinkd::dacTimerAdjust = nullptr;
         ptt_->off();
     }
 
@@ -97,6 +103,8 @@ struct M17Modulator : Modulator
         ptt_ = ptt;
         ptt_->off();
     }
+
+    PTT* get_ptt() const { return ptt_; }
 
     void send(uint8_t bits) override
     {
@@ -330,6 +338,8 @@ private:
     [[gnu::noinline]]
     void fill(int16_t* buffer, uint8_t bits)
     {
+        HAL_IWDG_Refresh(&hiwdg);
+
         if (send_tone)
         {
             fill_tone(buffer);
@@ -352,25 +362,11 @@ private:
             buffer[i] = adjust_level(tmp[i]);
         }
     }
-#if 0
-    [[gnu::noinline]]
-    void fill_empty(int16_t* buffer)
-    {
-        symbols.fill(0);
-
-        arm_fir_interpolate_f32(
-            &fir_interpolator, symbols.data(), tmp, BLOCKSIZE);
-
-        for (size_t i = 0; i != TRANSFER_LEN; ++i)
-        {
-            buffer[i] = adjust_level(tmp[i]);
-        }
-    }
-#endif
 
     [[gnu::noinline]]
     void fill_empty(int16_t* buffer)
     {
+        HAL_IWDG_Refresh(&hiwdg);
         send_tone = false;
         for (size_t i = 0; i != TRANSFER_LEN; ++i)
         {

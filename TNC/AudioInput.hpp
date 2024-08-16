@@ -9,8 +9,9 @@
 #include "stm32l4xx_hal.h"
 #include "cmsis_os.h"
 
-#include <tuple>
 #include <atomic>
+#include <functional>
+#include <tuple>
 
 #ifdef __cplusplus
 extern "C" {
@@ -63,7 +64,11 @@ void TNC_Error_Handler(int dev, int err);
 #ifdef __cplusplus
 }
 
-namespace mobilinkd { namespace tnc { namespace audio {
+namespace mobilinkd {
+
+extern std::function<void(void)> adcTimerAdjust;
+
+namespace tnc { namespace audio {
 
 constexpr const uint32_t SAMPLE_RATE = 26400;
 

@@ -8,6 +8,7 @@
 #include "PTT.hpp"
 #include "Log.h"
 #include "Modulator.hpp"
+#include "TimerAdjust.h"
 
 #include "stm32l4xx_hal.h"
 #include "cmsis_os.h"
@@ -77,6 +78,7 @@ struct AFSKModulator : Modulator
     uint8_t twist_{50};
     uint16_t volume_{4096};
     std::array<uint16_t, DAC_BUFFER_LEN> buffer_;
+    TimerAdjust<2727, 26400, 12320> dacTimerAdjust{&htim7};    
 
     AFSKModulator(osMessageQId queue, PTT* ptt)
     : dacOutputQueueHandle_(queue), ptt_(ptt)
@@ -89,6 +91,7 @@ struct AFSKModulator : Modulator
 
    void deinit() override
    {
+        mobilinkd::dacTimerAdjust = nullptr; 
    }
 
    void set_gain(uint16_t v) override
@@ -107,6 +110,8 @@ struct AFSKModulator : Modulator
             ptt_->on();
         }
     }
+
+    PTT* get_ptt() const { return ptt_; }
 
     void set_twist(uint8_t twist) {twist_ = twist;}
 
@@ -138,7 +143,6 @@ struct AFSKModulator : Modulator
     void fill(uint16_t* buffer, bool bit)
     {
         HAL_IWDG_Refresh(&hiwdg);
-
         for (size_t i = 0; i != BIT_LEN; i++)
         {
             int s = sin_table[pos_];
@@ -189,7 +193,6 @@ struct AFSKModulator : Modulator
     void empty()
     {
         HAL_IWDG_Refresh(&hiwdg);
-
         switch (running_) {
         case 1:
             running_ = 0;
@@ -246,7 +249,7 @@ private:
          CxxErrorHandler();
        }
 
-       HAL_TIM_Base_Start(&htim7);
+       HAL_TIM_Base_Start_IT(&htim7);
        HAL_DAC_Start_DMA(
            &hdac1, DAC_CHANNEL_1,
            reinterpret_cast<uint32_t*>(buffer_.data()), buffer_.size(),

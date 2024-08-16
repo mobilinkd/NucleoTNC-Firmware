@@ -117,7 +117,7 @@ int adjust_input_gain() {
     else gain = 0;
 
     set_input_gain(gain);
-    osDelay(1000);   // Need time for DC offset to settle.
+    osDelay(1000);   // Need time for DC offset to settle. (THIS NEEDS TO BE MUCH LONGER.)
 
     std::tie(vpp, vavg, vmin, vmax) = readLevels(AUDIO_IN);
     INFO("\nVpp = %" PRIu16 ", Vavg = %" PRIu16 "\n", vpp, vavg);
@@ -156,7 +156,7 @@ void setAudioInputLevels()
     INFO("Setting input gain: %d", kiss::settings().input_gain);
     set_input_gain(kiss::settings().input_gain);
 
-    osDelay(1000);   // Need time for DC offset to settle.
+    osDelay(1000); // Delay for 5 seconds for DC level to settle.
 
     uint16_t vpp, vavg, vmin, vmax;
 

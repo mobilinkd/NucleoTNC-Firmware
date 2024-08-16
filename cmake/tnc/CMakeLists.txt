@@ -40,7 +40,6 @@ target_sources(tnc PRIVATE
     ../../TNC/AFSKTestTone.cpp
     ../../TNC/AudioInput.cpp
     ../../TNC/AudioLevel.cpp
-    ../../TNC/Correlator.cpp
     ../../TNC/DCD.cpp
     ../../TNC/Demodulator.cpp
     ../../TNC/FilterCoefficients.cpp

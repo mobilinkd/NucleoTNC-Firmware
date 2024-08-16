@@ -14,7 +14,7 @@
 #include <iterator>
 #include <numeric>
 
-namespace mobilinkd { namespace m17 {
+namespace mobilinkd {
 
 /**
  * Calculate the phase estimates for each sample position.
@@ -121,4 +121,90 @@ struct SymbolSlopeIntegrator
     }
 };
 
-}} // mobilinkd::m17
+template <size_t SamplesPerSymbol = 10>
+struct SymbolSlopeIntegratorQ15
+{
+    static constexpr std::array<int16_t, 5> IMPULSE = {
+        -4096, -2896, 0, 2896, 4096
+    };
+
+    static constexpr size_t BEGIN = SamplesPerSymbol / 2 + IMPULSE.size() / 2;
+    static constexpr size_t END = BEGIN + SamplesPerSymbol;
+
+    std::array<int16_t, SamplesPerSymbol> integrator_;
+    std::array<int16_t, SamplesPerSymbol * 2> signal;
+    std::array<int16_t, SamplesPerSymbol * 2 + IMPULSE.size() - 1> output;
+
+    int16_t prev_ = 0;
+    size_t index_ = 0;
+    int16_t impulse_ = -1;
+
+    void reset()
+    {
+        integrator_.fill(0);
+        prev_ = 0;
+        index_ = 0;
+        impulse_ = -1;
+    }
+
+    void operator()(int16_t value)
+    {
+        int16_t dy = __SHSUB16(value, prev_);
+
+        // Invert the phase estimate when sample midpoint is less than 0.
+        int16_t slope = value < 0 ? -dy : dy;
+        int16_t tmp = __SHSUB16(slope, integrator_[index_]) >> 3;
+        integrator_[index_] = __SHADD16(integrator_[index_], tmp);
+        index_ = (index_ == (SamplesPerSymbol - 1)) ? 0 : index_ + 1;
+        prev_ = value;
+    }
+
+    [[gnu::noinline]]
+    int8_t update()
+    {
+        // Circular convolution, so we concatenate the signal back-to-back.
+        // This is effectively "wrap" convolution, just offset by
+        // (SamplesPerSignal + IMPULSE.size()) / 2.
+        auto it = std::copy(integrator_.begin(), integrator_.end(), signal.begin());
+        std::copy(integrator_.begin(), integrator_.end(), it);
+
+        arm_conv_q15(signal.data(), signal.size(),
+            IMPULSE.data(), IMPULSE.size(),
+            output.data());
+
+        auto argmax = std::max_element(&output[BEGIN], &output[END]);
+        int8_t index = std::distance(&output[BEGIN], argmax);
+        impulse_ = *argmax; 
+
+        // Normalize index from wrapped position.
+        index -= SamplesPerSymbol / 2;
+        if (index < 0) index += SamplesPerSymbol;
+
+#if 0
+        if (impulse_ > 50) {
+            INFO("Impulse = %d, Index = %d", int(impulse_), int(index));
+        }
+#endif
+
+        // Reset integrator for next frame.
+        // std::transform(integrator_.begin(), integrator_.end(), integrator_.begin(), [](auto x) { return x >> 2; });
+
+        return index;
+    }
+
+    /**
+     * Return the current sample index.  This will always be in the range of
+     * [0..SAMPLES_PER_SYMBOL).
+     */
+    uint8_t current_index() const
+    {
+        return index_;
+    }
+
+    int16_t impulse() const
+    {
+        return impulse_;
+    }
+};
+
+} // mobilinkd

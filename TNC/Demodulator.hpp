@@ -29,6 +29,8 @@ struct IDemodulator
     virtual bool locked() const = 0;
     virtual size_t size() const = 0;
 
+    virtual size_t get_adc_exponent() const { return 4; } // Shift value required to normalize output to uint16_t.
+
     /**
      * Tell the demodulator to return all "passable" HDLC frames.  These
      * are frames which consist of an even multiple of eight bits and are
@@ -41,7 +43,7 @@ struct IDemodulator
 
     virtual ~IDemodulator() {}
 
-    static void startADC(uint32_t period, uint32_t block_size);
+    static void startADC(uint32_t period, uint32_t block_size, bool interrupt = true);
 
     static void stopADC();
 };

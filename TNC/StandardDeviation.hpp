@@ -84,4 +84,25 @@ struct RunningStandardDeviation
     }
 };
 
+template <int32_t N>
+struct IntRunningStandardDeviation
+{
+    int32_t S{0};
+
+    void reset()
+    {
+        S = 0;
+    }
+
+    void capture(int32_t sample)
+    {
+        S += ((sample * sample) - S) >> N;
+    }
+
+    int32_t variance() const
+    {
+        return S;
+    }
+};
+
 } // mobilinkd

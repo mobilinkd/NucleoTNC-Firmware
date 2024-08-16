@@ -10,13 +10,18 @@
 #include "cmsis_os.h"
 
 #include <cstdint>
+#include <functional>
 
 extern osMessageQId hdlcOutputQueueHandle;
 extern osMessageQId dacOutputQueueHandle;
 extern TIM_HandleTypeDef htim7;
 extern DAC_HandleTypeDef hdac1;
 
-namespace mobilinkd { namespace tnc {
+namespace mobilinkd {
+
+extern std::function<void(void)> dacTimerAdjust;
+
+namespace tnc {
 
 /**
  * The modulator has three distinct interfaces.  The configuration interface
@@ -51,6 +56,8 @@ struct Modulator
      * @param ptt
      */
     virtual void set_ptt(PTT* ptt) = 0;
+
+    virtual PTT* get_ptt() const = 0;
 
     /**
      * Send a single bit.

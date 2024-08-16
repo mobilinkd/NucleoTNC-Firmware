@@ -106,7 +106,6 @@ uint8_t adcInputQueueBuffer[ 8 * sizeof( uint32_t ) ];
 osStaticMessageQDef_t adcInputQueueControlBlock;
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-osMutexId hardwareInitMutexHandle;
 
 char serial_number_64[13] = {0};
 char error_message[80] __attribute__((section(".bss3"))) = {0};
@@ -185,7 +184,7 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-
+  __HAL_RCC_CLEAR_RESET_FLAGS();
   /* USER CODE END Init */
 
   /* Configure the system clock */
@@ -222,7 +221,7 @@ int main(void)
   indicate_turning_on();
   encode_serial_number();
 
-  if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 1024) != HAL_OK) Error_Handler();
+  if (HAL_DAC_SetValue(&hdac1, DAC_CHANNEL_2, DAC_ALIGN_12B_R, 2048) != HAL_OK) Error_Handler();
   if (HAL_DAC_Start(&hdac1, DAC_CHANNEL_2) != HAL_OK) Error_Handler();
   if (HAL_OPAMP_SelfCalibrate(&hopamp1) != HAL_OK) Error_Handler();
   if (HAL_OPAMP_Start(&hopamp1) != HAL_OK) Error_Handler();
@@ -265,10 +264,6 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
-  osMutexDef(hardwareInitMutex);
-  hardwareInitMutexHandle = osMutexCreate(osMutex(hardwareInitMutex));
-  osMutexWait(hardwareInitMutexHandle, osWaitForever);
-
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
@@ -335,6 +330,9 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  osThreadSuspend(modulatorTaskHandle);
+  osThreadSuspend(audioInputTaskHandle);
+
   /* USER CODE END RTOS_THREADS */
 
   /* Start scheduler */
@@ -893,7 +891,7 @@ static void MX_TIM6_Init(void)
   htim6.Init.Prescaler = 0;
   htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim6.Init.Period = 1817;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
   {
     Error_Handler();
@@ -931,7 +929,7 @@ static void MX_TIM7_Init(void)
   htim7.Init.Prescaler = 0;
   htim7.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim7.Init.Period = 1817;
-  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  htim7.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
   if (HAL_TIM_Base_Init(&htim7) != HAL_OK)
   {
     Error_Handler();
@@ -1138,6 +1136,8 @@ void SysClock48()
     /**Configure the Systick interrupt time
     */
     HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+  
+    __HAL_RCC_PLLSAI1_DISABLE();
 
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
     RCC_OscInitStruct.MSIState = RCC_MSI_ON;
@@ -1158,6 +1158,7 @@ void SysClock48()
     RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_SYSCLK;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_MSI;
 
+/*
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
     PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
     PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
@@ -1171,6 +1172,7 @@ void SysClock48()
     {
       _Error_Handler(__FILE__, __LINE__);
     }
+*/
 
     if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
     {
@@ -1212,6 +1214,12 @@ void SysClock72()
 
     TPI->ACPR = 7;
 
+    /**Configure the Systick interrupt time
+    */
+    HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
+  
+    __HAL_RCC_PLLSAI1_DISABLE();
+
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_MSI;
     RCC_OscInitStruct.MSIState = RCC_MSI_ON;
     RCC_OscInitStruct.MSICalibrationValue = RCC_MSICALIBRATION_DEFAULT;
@@ -1238,6 +1246,7 @@ void SysClock72()
 
     TPI->ACPR = 35;
 
+/*
     PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_ADC;
     PeriphClkInit.AdcClockSelection = RCC_ADCCLKSOURCE_PLLSAI1;
     PeriphClkInit.PLLSAI1.PLLSAI1Source = RCC_PLLSOURCE_MSI;
@@ -1251,6 +1260,7 @@ void SysClock72()
     {
       _Error_Handler(__FILE__, __LINE__);
     }
+*/
 
     HAL_RCCEx_EnableMSIPLLMode();
     if ((RCC->CR & RCC_CR_MSIPLLEN) == 0) printf("MSI PLL Failed\r\n");
@@ -1264,6 +1274,17 @@ void SysClock72()
 void _Error_Handler(char const* file, uint32_t line)
 {
   snprintf(error_message, sizeof(error_message), "Error: %s:%d\r\n", file, (int) line);
+  error_message[sizeof(error_message) - 1] = 0;
+
+  NVIC_SystemReset();
+}
+
+void _Error_Handler2(char *file, int line, HAL_StatusTypeDef status)
+{
+#ifdef KISS_LOGGING
+  printf("Error handler called from file %s on line %d\r\n", file, line);
+#endif
+  snprintf(error_message, sizeof(error_message), "Error: %s:%d, status = %d\r\n", file, line, status);
   error_message[sizeof(error_message) - 1] = 0;
 
   NVIC_SystemReset();
@@ -1308,7 +1329,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   }
   /* USER CODE BEGIN Callback 1 */
   if (htim->Instance == TIM1) {
-      LED_TIMER_PeriodElapsedCallback();
+    LED_TIMER_PeriodElapsedCallback();
   }
 
   /* USER CODE END Callback 1 */

@@ -1,6 +1,7 @@
 // Copyright 2020 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
+#include "AudioLevel.hpp"
 #include "M17Modulator.h"
 
 namespace mobilinkd { namespace tnc {
@@ -9,9 +10,14 @@ void M17Modulator::init(const kiss::Hardware& hw)
 {
     for (auto& x : buffer_) x = 2048;
 
-    (void) hw; // unused
+    UNUSED(hw);
+
+    audio::setAudioOutputLevel();
 
     __HAL_TIM_SET_AUTORELOAD(&htim7, 999);
+    __HAL_TIM_SET_PRESCALER(&htim7, 0);
+
+    mobilinkd::dacTimerAdjust = dacTimerAdjust;
 
     DAC_ChannelConfTypeDef sConfig;
 

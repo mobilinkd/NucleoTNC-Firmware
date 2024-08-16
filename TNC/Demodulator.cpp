@@ -18,30 +18,35 @@ namespace mobilinkd { namespace tnc {
  * @param period
  * @param block_size
  */
-void IDemodulator::startADC(uint32_t period, uint32_t block_size)
+void IDemodulator::startADC(uint32_t period, uint32_t block_size, bool interrupt)
 {
+    HAL_StatusTypeDef status;
+
     audio::set_adc_block_size(block_size);
 
     __HAL_TIM_SET_AUTORELOAD(&htim6, period);
 
-    if (HAL_TIM_Base_Start(&htim6) != HAL_OK)
-    {
-        CxxErrorHandler();
+    if (interrupt) {
+        status = HAL_TIM_Base_Start_IT(&htim6);
+    } else {
+        status = HAL_TIM_Base_Start(&htim6);
     }
-
-    if (HAL_ADC_Start_DMA(&hadc1, audio::adc_buffer,
-        audio::dma_transfer_size) != HAL_OK)
-    {
-        CxxErrorHandler();
-    }
+    if (status != HAL_OK) CxxErrorHandler2(status);
+    status = HAL_ADC_Start_DMA(&DEMODULATOR_ADC_HANDLE, audio::adc_buffer, audio::dma_transfer_size);
+    if (status != HAL_OK) CxxErrorHandler2(status);
+    INFO("IDemodulator::startADC");
 }
 
 void IDemodulator::stopADC()
 {
-    if (HAL_ADC_Stop_DMA(&hadc1) != HAL_OK)
-        CxxErrorHandler();
-    if (HAL_TIM_Base_Stop(&htim6) != HAL_OK)
-        CxxErrorHandler();
+    HAL_StatusTypeDef status;
+
+    status = HAL_ADC_Stop_DMA(&DEMODULATOR_ADC_HANDLE);
+    if (status != HAL_OK) CxxErrorHandler2(status);
+    status = HAL_TIM_Base_Stop(&htim6);
+    if (status != HAL_OK) CxxErrorHandler2(status);
+    mobilinkd::adcTimerAdjust = nullptr;
+    INFO("IDemodulator::stopADC");
 }
 
 

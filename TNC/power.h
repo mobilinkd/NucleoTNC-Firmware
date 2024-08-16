@@ -1,8 +1,7 @@
-// Copyright 2017 Rob Riggs <rob@mobilinkd.com>
+// Copyright 2017-2024 Rob Riggs <rob@mobilinkd.com>
 // All rights reserved.
 
-#ifndef MOBILINKD__TNC__POWER_H_
-#define MOBILINKD__TNC__POWER_H_
+#pragma once
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,7 +30,7 @@ namespace mobilinkd { namespace tnc {
  * - USB occurs when the TNC is powered off and the TNC is connected to
  *   USB power.
  */
-enum PowerType {POWERON, NORMAL, USB, SAFE};
+enum PowerType {POWER_ON, POWER_OFF_NORMAL, POWER_OFF_USB, POWER_OF_SAFE};
 
 void shutdown(PowerType type);
 void wakeup(PowerType type);
@@ -39,5 +38,3 @@ void wakeup(PowerType type);
 }} // mobilinkd::tnc
 
 #endif //__cplusplus
-
-#endif // MOBILINKD__TNC__POWER_H_

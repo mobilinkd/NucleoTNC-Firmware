@@ -309,7 +309,6 @@ extern "C" void HAL_UART_ErrorCallback(UART_HandleTypeDef* huart)
 
 namespace mobilinkd { namespace tnc {
 
-
 uint32_t serialTaskBuffer[ 128 ] __attribute__((section(".bss3")));
 osStaticThreadDef_t serialTaskControlBlock __attribute__((section(".bss3")));
 
@@ -317,6 +316,7 @@ uint8_t serialQueueBuffer[ 32 * sizeof( void* ) ] __attribute__((section(".bss3"
 osStaticMessageQDef_t serialQueueControlBlock __attribute__((section(".bss3")));
 
 osMutexDef(serialMutex);
+
 
 void SerialPort::init()
 {
@@ -328,9 +328,14 @@ void SerialPort::init()
 
     mutex_ = osMutexCreate(osMutex(serialMutex));
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"    // cmsis-os is not const-correct.
+
     osThreadStaticDef(serialTask, startSerialTask, osPriorityAboveNormal, 0,
         128, serialTaskBuffer, &serialTaskControlBlock);
     serialTaskHandle_ = osThreadCreate(osThread(serialTask), this);
+
+#pragma GCC diagnostic pop
 }
 
 bool SerialPort::open()
@@ -390,7 +395,11 @@ bool SerialPort::write(const uint8_t* data, uint32_t size, uint8_t type, uint32_
 
     // Buffer has room for at least one more byte.
     tmpBuffer[pos++] = 0xC0;
-    while (!txDoneFlag) osThreadYield();
+    while (!txDoneFlag && osKernelSysTick() - start < timeout) osThreadYield();
+    if (!txDoneFlag) {
+        txDoneFlag = true;
+        return false;
+    }
     memcpy(TxBuffer, tmpBuffer, pos);
     txDoneFlag = false;
     while (open_ and HAL_UART_Transmit_DMA(&huart_serial, TxBuffer, pos) == HAL_BUSY)

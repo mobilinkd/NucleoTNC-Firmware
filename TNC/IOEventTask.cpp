@@ -19,6 +19,9 @@
 #include "cmsis_os.h"
 
 extern osMessageQId hdlcOutputQueueHandle;
+extern osThreadId modulatorTaskHandle;
+extern osThreadId audioInputTaskHandle;
+
 extern IWDG_HandleTypeDef hiwdg;
 
 static PTT getPttStyle(const mobilinkd::tnc::kiss::Hardware& hardware)
@@ -43,8 +46,6 @@ void startIOEventTask(void const*)
         hardware.store();
     }
 
-    osMutexRelease(hardwareInitMutexHandle);
-
     hardware.debug();
 
     audio::init_log_volume();
@@ -55,19 +56,32 @@ void startIOEventTask(void const*)
     osMessagePut(audioInputQueueHandle, mobilinkd::tnc::audio::DEMODULATOR,
         osWaitForever);
 
+    // The modulator task cannot start until after EEPROM settings are
+    // loaded or initialized.
+    osThreadResume(modulatorTaskHandle);
+    osThreadResume(audioInputTaskHandle);
+
     indicate_waiting_to_connect();
 
     /* Infinite loop */
     for (;;)
     {
         osEvent evt = osMessageGet(ioEventQueueHandle, 100);
-        HAL_IWDG_Refresh(&hiwdg);
+        if (hdlc::ioFramePool().size() != 0 && !getModulator().get_ptt()->state()) {
+            // If the IO event loop is inactive or the frame pool is empty for
+            // too long, the TNC is essentially non-functional. When  transmitting,
+            // the modulator is responsible for updating the watchdog.
+            HAL_IWDG_Refresh(&hiwdg); // Refresh IWDG in IO loop (primary refresh).
+        }
+
         if (evt.status != osEventMessage)
             continue;
 
         uint32_t cmd = evt.value.v;
         if (cmd < FLASH_BASE) // Assumes FLASH_BASE < SRAM_BASE.
         {
+            // uint16_t arg = cmd & 0xFFFF;
+            // cmd &= 0x07FF0000;
             switch (cmd) {
             case CMD_USER_BUTTON_DOWN:
                 INFO("Button Down");
@@ -85,6 +99,9 @@ void startIOEventTask(void const*)
                 break;
             case CMD_SET_PTT_MULTIPLEX:
                 getModulator().set_ptt(&multiplexPtt);
+                break;
+            case CMD_RESTORE_SYSCLK:
+                // Not appicable to NucleoTNC
                 break;
             default:
                 WARN("unknown command = %04x", static_cast<unsigned int>(cmd));
